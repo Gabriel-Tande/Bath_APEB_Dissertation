@@ -23,13 +23,13 @@
                 min,
                 max
             };
-        }
+        };
 
         // Denormalise function
         function denormalise(tensor, min, max) {
             const denormalisedTensor = tensor.mul(max.sub(min)).add(min);
             return denormalisedTensor;
-        }
+        };
 
         let model;
         // Creating a Linear Regression Model
@@ -40,7 +40,7 @@
                 units: 1,
                 useBias: true,
                 activation: `linear`,
-                inputDim: 1,
+                inputDim: 4,
             }));
 
             const optimizer = tf.train.sgd(0.1);
@@ -51,29 +51,39 @@
             })
 
             return model;
-        }
+        };
 
         // Train model fucntion
         async function trainModel(model, trainingFeatureTensor, trainingLabelTensor) {
             return model.fit(trainingFeatureTensor, trainingLabelTensor, {
-                epochs: 20,
+                epochs: 10,
                 validationSplit: 0.2
             });
-        }
+        };
 
         async function predict () {
-            const predictionInputOne = parseInt(document.getElementById("prediction-input-1".value));
-             tf.tidy(() => {
-                const inputTensor = tf.tensor1d([predictionInputOne]);
-                const normalisedInput = normalise(inputTensor, normalisedFeature.min, normalisedFeature.max);
-                const normalisedOutputTensor = model.predict(normalisedInput.tensor);
-                const outputTensor = denormalise(normalisedOutputTensor, normalisedLabel.min, normalisedLabel.max);
-                const outputValue = outputTensor.dataSync()[0];
-                document.getElementById("prediction-output").innerHTML = `The predicted GPA: <br />`
-                + `<span style="font-size: 2em">${outputValue}</span>`;
-                })
-        }
-        
+            const predictionInputOne = parseInt(document.getElementById("prediction-input-1").value);
+            const predictionInputTwo = parseInt(document.getElementById("prediction-input-2").value);
+            const predictionInputThree = parseInt(document.getElementById("prediction-input-3").value);
+            const predictionInputFour = parseInt(document.getElementById("prediction-input-4").value);
+            if (isNaN(predictionInputOne) || isNaN(predictionInputTwo) || isNaN(predictionInputThree) || isNaN(predictionInputFour)) {
+                alert("Please enter a valid number");
+            }
+            else {
+                tf.tidy(() => {
+                    const inputTensor = tf.tensor([predictionInputOne,predictionInputTwo,predictionInputThree,predictionInputFour], [1,4]);
+                    inputTensor.print();
+                    const normalisedInput = normalise(inputTensor, normalisedFeature.min, normalisedFeature.max);
+                    const normalisedOutputTensor = model.predict(normalisedInput.tensor);
+                    const outputTensor = denormalise(normalisedOutputTensor, normalisedLabel.min, normalisedLabel.max);
+                    outputTensor.print();
+                    const outputValue = outputTensor.dataSync()[0];
+                    document.getElementById("prediction-output").innerHTML = `The predicted student GPA is: <br />`
+                        + `<span style="font-size: 2em">${(outputValue.toFixed(2))}</span>`;
+                });
+            }
+        };
+
         async function load () {
             const storageKey = `localstorage://${storageID}`;
             const models = await tf.io.listModels();
@@ -94,7 +104,7 @@
             else {
                 alert("Could not load: no saved model found");
             }
-        }
+        };
        
         const storageID = "gpa-regression";
         async function save () {
@@ -108,7 +118,7 @@
             console.log(`Testing set loss: ${loss}`);
 
             document.getElementById("testing-status").innerHTML = `Testing set loss: ${loss[0].toPrecision(5)}`;
-        }
+        };
 
         async function train () {
             ["train", "test", "load", "predict", "save"].forEach(id => {
@@ -134,11 +144,11 @@
                 document.getElementById("test-button").removeAttribute("disabled");
                 document.getElementById("save-button").removeAttribute("disabled");
                 document.getElementById("predict-button").removeAttribute("disabled");
-        }
+        };
   
         async function toggleVisor () {
             tfvis.visor().toggle();
-        }
+        };
 
         let normalisedFeature, normalisedLabel;
         let trainingFeatureTensor, testingFeatureTensor, trainingLabelTensor, testingLabelTensor;
@@ -149,7 +159,10 @@
 
             // Extract x and y
             const pointsDataset = gpaDataset.map(record => ({
-                x1: record.SATM,
+                x1: record.hsGPA,
+                x2: record.SATM,
+                x3: record.SATV,
+                x4: record.collegeYear,
                 y: record.collegeGPA,
             }));
 
@@ -160,12 +173,16 @@
             tf.util.shuffle(points);
 
             // Extract features
-            const featureValues = points.map(p => p.x1);
-            const featureTensor = tf.tensor(featureValues, [featureValues.length, 1]);
+            const featureValues = points.map(p => [p.x1, p.x2, p.x3, p.x4]);
+            const featureTensor = tf.tensor2d(featureValues, [featureValues.length, 4]);
+
+            featureTensor.print();
 
             // Extract label
             const labelValues = points.map(p => p.y);
-            const labelTensor = tf.tensor(labelValues, [labelValues.length, 1]);
+            const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
+
+            labelTensor.print();
 
             // Min/Max normalization
             normalisedFeature = normalise(featureTensor);
@@ -242,12 +259,15 @@
                 </div>
 
                 <!--   Prediction   -->
-                 <div class="col s12 m6">
+                <div class="col s12 m6">
                     <div class="icon-block">
                         <h3 class="center light-blue-text"><i class="material-icons" style="font-size: 2em">timeline</i></h3>
                         <h5 class="center">Predict</h5>
    
-                        <label>SAT Math: <input type="number" id="prediction-input" placeholder="700"/></label>
+                        <label>High school GPA: <input type="number" id="prediction-input-1" placeholder="2000"/></label>
+                        <label>SAT math: <input type="number" id="prediction-input-2" placeholder="2000"/></label>
+                        <label>SAT verbal: <input type="number" id="prediction-input-3" placeholder="2000"/></label>
+                        <label>College year: <input type="number" id="prediction-input-4" placeholder="2000"/></label>
                         <button autocomplete="off" id="predict-button" class="waves-effect light-blue waves-light btn" disabled onclick="predict()">Predict GPA</button>
                         <p><strong id="prediction-output"></strong></p>
                     </div>
